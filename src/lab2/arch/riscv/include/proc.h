@@ -31,6 +31,11 @@ struct task_struct {
     struct thread_struct thread;
 };
 
+struct pid_counter {
+    uint64_t pid;
+    uint64_t counter;
+};
+
 /* 线程初始化，创建 NR_TASKS 个线程 */
 void task_init();
 
@@ -45,5 +50,8 @@ void switch_to(struct task_struct *next);
 
 /* dummy funciton: 一个循环程序，循环输出自己的 pid 以及一个自增的局部变量 */
 void dummy();
+
+/* a simple bubble sort for schedule */
+void __bubble_sort(struct pid_counter* arr, uint64_t len);
 
 #endif
