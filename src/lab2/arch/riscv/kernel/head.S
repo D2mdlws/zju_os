@@ -9,6 +9,9 @@ _start:
 
     la sp, boot_stack           # set stack pointer
 
+    call mm_init
+    call task_init
+
     # ----------------------
     # - set stvec = _traps -
     # ----------------------
@@ -40,10 +43,6 @@ _start:
 
     li t1, 0x2
     csrs sstatus, t1
-
-    call mm_init
-
-    call task_init
 
     call start_kernel
 
