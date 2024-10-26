@@ -72,6 +72,7 @@ char expected_output[] = "2222222222111111133334222222222211111113";
 #endif
 
 void dummy() {
+    Log("step into dummy(), current pid = %d, current counter = %d", current->pid, current->counter);
     uint64_t MOD = 1000000007;
     uint64_t auto_inc_local_var = 0;
     int last_counter = -1;
