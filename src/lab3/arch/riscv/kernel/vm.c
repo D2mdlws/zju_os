@@ -17,7 +17,7 @@ extern char _sbss[];
 extern char _ebss[];
 
 /* early_pgtbl: 用于 setup_vm 进行 1GB 的 映射。 */
-uint64_t  early_pgtbl[512] __attribute__((__aligned__(0x1000))); // unsigned long is 8 bytes, 4KB all together in a page
+uint64_t  early_pgtbl[512] __attribute__((__aligned__(0x1000))); // uint64_t is 8 bytes, 4KB all together in a page
 /* swapper_pg_dir: kernel pagetable 根目录，在 setup_vm_final 进行映射 */
 uint64_t  swapper_pg_dir[512] __attribute__((__aligned__(0x1000)));
 
@@ -30,21 +30,24 @@ void setup_vm() {
         低 30 bit 作为 页内偏移 这里注意到 30 = 9 + 9 + 12， 即我们只使用根页表， 根页表的每个 entry 都对应 1GB 的区域。 
     3. Page Table Entry 的权限 V | R | W | X 位设置为 1
     */
-
-    memset(early_pgtbl, 0x0, PGSIZE); // clear the page table
-    uint64_t pte_flags = 0x1 | 0x2 | 0x4 | 0x8; // V | R | W | X
-    uint64_t table_index;
-
     /* 
-     * the phy_page is aligned to 4KB, thus to get the number of pages, need to right shift 12 bits
-     * then left shift 10 bits to set flags.
+     * Since the 1GB mapping only needs the first page, thus the least significant 30 bits of
+     * the physical are considered as the offset, and the 9 bits in the middle are used as index
+     * 
+     * In the pte, only PPN[2](26 bits) is needed, thus turn the phyaddr[55:30] to pte[53:28]
     */
 
+    uint64_t pte_flags = 0x1 | 0x2 | 0x4 | 0x8; // V | R | W | X
+    uint64_t table_index;
+    uint64_t PHY_PPN_2 = (PHY_START >> 30) & 0x3ffffff;
+    uint64_t PTE_PPN_2 = PHY_PPN_2 << 28;
+
+
     table_index = (PHY_START >> 30) & (0x1ffUL);        // GET 9-bit index
-    early_pgtbl[table_index] = (((PHY_START >> 30) & 0x3ffffff) << 28) | pte_flags; // set page table entry
+    early_pgtbl[table_index] = PTE_PPN_2 | pte_flags; // set page table entry
 
     table_index = (VM_START >> 30) & (0x1ffUL);        // GET 9-bit index
-    early_pgtbl[table_index] = (((PHY_START >> 30) & 0x3ffffff) << 28) | pte_flags; // set page table entry
+    early_pgtbl[table_index] = PTE_PPN_2 | pte_flags; // set page table entry
 
     printk(BOLD FG_COLOR(255, 95, 00)"...setup_vm done!\n" CLEAR);
     // printk( "Set equal mapping: index = %#llx, tbl_entry = %#llx\n" CLEAR, 
@@ -57,7 +60,6 @@ void setup_vm() {
 
 void setup_vm_final() {
     // Log("In setup_vm_final()");
-    memset(swapper_pg_dir, 0x0, PGSIZE);
 
     // No OpenSBI mapping required
     // Log("_stext = %#llx, _srodata = %#llx, sun = ", _stext, _srodata, (uint64_t)_srodata - (uint64_t)_stext);
@@ -129,15 +131,17 @@ void create_mapping(uint64_t *pgtbl, uint64_t va, uint64_t pa, uint64_t sz, uint
 
         // Log("pgtbl[VPN_2] = %#llx", pgtbl[VPN_2]);
         if ((pgtbl[VPN_2] & 0x1) == 0) {
-            uintptr_t new_pmd = (uintptr_t)kalloc(); // allocate a page for pmd
-            pgtbl[VPN_2] = ((((uint64_t)new_pmd - PA2VA_OFFSET) >> 12) << 10) | 0x1;
+            uint64_t* new_pmd_va = (uint64_t*)kalloc(); // allocate a page for pmd
+            uint64_t new_pmd_pa = (uint64_t)new_pmd_va - PA2VA_OFFSET;
+            pgtbl[VPN_2] = (((new_pmd_pa) >> 12) << 10) | 0x1;
         }
-        pmd = (uint64_t*)(((pgtbl[VPN_2] >> 10) << 12)); // physical addr of pmd
+        pmd = (uint64_t*)((pgtbl[VPN_2] >> 10) << 12); // physical addr of pmd
 
         // Log("pmd = %#llx", pmd);
         if ((pmd[VPN_1] & 0x1) == 0) {
-            uintptr_t new_pte = (uintptr_t)kalloc(); // allocate a page for pte
-            pmd[VPN_1] = ((((uint64_t)new_pte - PA2VA_OFFSET) >> 12) << 10) | 0x1;
+            uint64_t* new_pte_va = (uint64_t*)kalloc(); // allocate a page for pte
+            uint64_t new_pte_pa = (uint64_t)new_pte_va - PA2VA_OFFSET;
+            pmd[VPN_1] = ((new_pte_pa >> 12) << 10) | 0x1;
         }
         pte = (uint64_t*)(((pmd[VPN_1] >> 10) << 12)); // physical addr of pte
 

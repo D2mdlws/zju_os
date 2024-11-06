@@ -63,7 +63,7 @@ void task_init() {
     printk(BOLD FG_COLOR(215, 135, 215) "...task_init done!\n" CLEAR);
 }
 
-#ifdef TEST_SCHED
+#if TEST_SCHED
 #define MAX_OUTPUT ((NR_TASKS - 1) * 10)
 char tasks_output[MAX_OUTPUT];
 int tasks_output_index = 0;
@@ -113,7 +113,7 @@ void dummy() {
                     flag = 0;
                 }
             }
-            #ifdef TEST_SCHED
+            #if TEST_SCHED
             tasks_output[tasks_output_index++] = current->pid + '0';
             if (tasks_output_index == MAX_OUTPUT) {
                 for (int i = 0; i < MAX_OUTPUT; ++i) {
