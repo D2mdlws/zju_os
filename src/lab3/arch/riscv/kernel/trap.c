@@ -20,12 +20,23 @@ void trap_handler(uint64_t scause, uint64_t sepc) {
             
             clock_set_next_event();
             do_timer();
-        }
-        else {
+        } else {
             printk("[S] Unhandled interrupt/exception: scause=0x%lx\n", scause);
         }
     }
-    else {
-        printk("[S] Unhandled interrupt/exception: scause=0x%lx\n", scause);
+    else { // Exception
+        if (scause == 0x0000000000000007) {
+            printk("[S] Supervisor Mode Store/AMO Access Fault\n");
+        } else if (scause == 0x0000000000000005) {
+            printk("[S] Supervisor Mode Load Access Fault\n");
+        } else if (scause == 0x0000000000000001) {
+            printk("[S] Supervisor Mode Instruction Access Fault\n");
+        } else if (scause == 0x000000000000000c) {
+            printk("[S] Supervisor Mode Instruction Page Fault\n");
+        } else if (scause == 0x000000000000000f) {
+            printk("[S] Supervisor Mode Store/AMO page fault\n");
+        } else {
+            printk("[S] Unhandled interrupt/exception: scause=0x%lx\n", scause);
+        }
     }
 }

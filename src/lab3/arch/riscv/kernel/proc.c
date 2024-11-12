@@ -86,17 +86,17 @@ void dummy() {
             last_counter = current->counter;
             auto_inc_local_var = (auto_inc_local_var + 1) % MOD;
             switch(x) {
-                case 1: printk(COLOR1 "[PID = %d] is running. auto_inc_local_var = %d\n" CLEAR, current->pid, auto_inc_local_var);
+                case 1: printk(COLOR1 "[PID = %d] is running. auto_inc_local_var = %d, addr_begin = %#llx\n" CLEAR, current->pid, auto_inc_local_var, (uint64_t)current);
                         break;
-                case 2: printk(COLOR2 "[PID = %d] is running. auto_inc_local_var = %d\n" CLEAR, current->pid, auto_inc_local_var);
+                case 2: printk(COLOR2 "[PID = %d] is running. auto_inc_local_var = %d, addr_begin = %#llx\n" CLEAR, current->pid, auto_inc_local_var, (uint64_t)current);
                         break;
-                case 3: printk(COLOR3 "[PID = %d] is running. auto_inc_local_var = %d\n" CLEAR, current->pid, auto_inc_local_var);
+                case 3: printk(COLOR3 "[PID = %d] is running. auto_inc_local_var = %d, addr_begin = %#llx\n" CLEAR, current->pid, auto_inc_local_var, (uint64_t)current);
                         break;
-                case 4: printk(COLOR4 "[PID = %d] is running. auto_inc_local_var = %d\n" CLEAR, current->pid, auto_inc_local_var);
+                case 4: printk(COLOR4 "[PID = %d] is running. auto_inc_local_var = %d, addr_begin = %#llx\n" CLEAR, current->pid, auto_inc_local_var, (uint64_t)current);
                         break;
-                case 5: printk(COLOR5 "[PID = %d] is running. auto_inc_local_var = %d\n" CLEAR, current->pid, auto_inc_local_var);
+                case 5: printk(COLOR5 "[PID = %d] is running. auto_inc_local_var = %d, addr_begin = %#llx\n" CLEAR, current->pid, auto_inc_local_var, (uint64_t)current);
                         break;
-                case 6: printk(COLOR6 "[PID = %d] is running. auto_inc_local_var = %d\n" CLEAR, current->pid, auto_inc_local_var);
+                case 6: printk(COLOR6 "[PID = %d] is running. auto_inc_local_var = %d, addr_begin = %#llx\n" CLEAR, current->pid, auto_inc_local_var, (uint64_t)current);
                         break;
             }
             // printk(COLOR1 "[PID = %d] is running. auto_inc_local_var = %d\n" CLEAR, current->pid, auto_inc_local_var);

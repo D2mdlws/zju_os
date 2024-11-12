@@ -43,8 +43,8 @@ void setup_vm() {
     uint64_t PTE_PPN_2 = PHY_PPN_2 << 28;
 
 
-    table_index = (PHY_START >> 30) & (0x1ffUL);        // GET 9-bit index
-    early_pgtbl[table_index] = PTE_PPN_2 | pte_flags; // set page table entry
+    // table_index = (PHY_START >> 30) & (0x1ffUL);        // GET 9-bit index
+    // early_pgtbl[table_index] = PTE_PPN_2 | pte_flags; // set page table entry
 
     table_index = (VM_START >> 30) & (0x1ffUL);        // GET 9-bit index
     early_pgtbl[table_index] = PTE_PPN_2 | pte_flags; // set page table entry
@@ -94,7 +94,7 @@ void setup_vm_final() {
     asm volatile("sfence.vma zero, zero");
 
     // flush icache
-    asm volatile("fence.i");
+    // asm volatile("fence.i");
 
     printk(FG_COLOR(255, 95, 255) "...setup_vm_final done!\n" CLEAR);
 
@@ -114,17 +114,15 @@ void create_mapping(uint64_t *pgtbl, uint64_t va, uint64_t pa, uint64_t sz, uint
 
     uint64_t num_pages = sz >> 12;
     if (sz % 0x1000 != 0)  num_pages++;
-    // Log("num_pages = %lu", num_pages);
+    // Log("va = %#llx, pa = %#llx", va, pa);
     // printk();
-
-
+    
     for (uint64_t i = 0; i < num_pages; i++) {
         // Log("va = %#llx, pa = %#llx", va, pa);
-
+        // Log("VPN_2 = %#llx, VPN_1 = %#llx, VPN_0 = %#llx", VPN_2, VPN_1, VPN_0);
         uint64_t VPN_2 = (va >> 30) & 0x1ffUL;
         uint64_t VPN_1 = (va >> 21) & 0x1ffUL;
         uint64_t VPN_0 = (va >> 12) & 0x1ffUL;
-        // Log("VPN_2 = %#llx, VPN_1 = %#llx, VPN_0 = %#llx", VPN_2, VPN_1, VPN_0);
 
         uintptr_t* pmd;
         uintptr_t* pte;
@@ -133,17 +131,19 @@ void create_mapping(uint64_t *pgtbl, uint64_t va, uint64_t pa, uint64_t sz, uint
         if ((pgtbl[VPN_2] & 0x1) == 0) {
             uint64_t* new_pmd_va = (uint64_t*)kalloc(); // allocate a page for pmd
             uint64_t new_pmd_pa = (uint64_t)new_pmd_va - PA2VA_OFFSET;
+            // Log("new_pmd_va = %#llx, new_pmd_pa = %#llx", new_pmd_va, new_pmd_pa);
             pgtbl[VPN_2] = (((new_pmd_pa) >> 12) << 10) | 0x1;
         }
-        pmd = (uint64_t*)((pgtbl[VPN_2] >> 10) << 12); // physical addr of pmd
+        pmd = (uint64_t*)(((pgtbl[VPN_2] >> 10) << 12) + PA2VA_OFFSET); // need to use virtual addr to find the table
 
         // Log("pmd = %#llx", pmd);
+        // Log("pmd[VPN_1] = %#llx", pmd[VPN_1]);
         if ((pmd[VPN_1] & 0x1) == 0) {
             uint64_t* new_pte_va = (uint64_t*)kalloc(); // allocate a page for pte
             uint64_t new_pte_pa = (uint64_t)new_pte_va - PA2VA_OFFSET;
             pmd[VPN_1] = ((new_pte_pa >> 12) << 10) | 0x1;
         }
-        pte = (uint64_t*)(((pmd[VPN_1] >> 10) << 12)); // physical addr of pte
+        pte = (uint64_t*)(((pmd[VPN_1] >> 10) << 12) + PA2VA_OFFSET);
 
         // Log("pte = %#llx", pte);
         pte[VPN_0] = ((pa >> 12) << 10) | perm; // set pte entry

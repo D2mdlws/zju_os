@@ -36,24 +36,28 @@ relocate:
     # set ra = ra + PA2VA_OFFSET
     # set sp = sp + PA2VA_OFFSET (If you have set the sp before)
 
-    li t0, PA2VA_OFFSET    # 0xffffffdf80000000
-    add ra, ra, t0
-    add sp, sp, t0
+    li t3, PA2VA_OFFSET    # 0xffffffdf80000000
+    add ra, ra, t3
+    add sp, sp, t3
+
+    /* set stvec to label 1 */
+    la t1, 1f
+    add t1, t1, t3
+    csrw stvec, t1
+
+    # flush tlb
+    sfence.vma zero, zero
 
     # set satp with early_pgtbl
 
     la t0, early_pgtbl
     srli t0, t0, 12
     li t1, 0x8000000000000000
-    add t0, t0, t1
+    or t0, t0, t1
     csrw satp, t0
 
-    # flush tlb
-    sfence.vma zero, zero
-
-    # flush icache
-    fence.i
-
+.align 2
+1:
     ret
 
     .section .bss.stack
