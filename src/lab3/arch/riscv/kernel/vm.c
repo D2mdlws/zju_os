@@ -39,8 +39,8 @@ void setup_vm() {
 
     uint64_t pte_flags = 0x1 | 0x2 | 0x4 | 0x8; // V | R | W | X
     uint64_t table_index;
-    uint64_t PHY_PPN_2 = (PHY_START >> 30) & 0x3ffffff;
-    uint64_t PTE_PPN_2 = PHY_PPN_2 << 28;
+    uint64_t PHY_PPN_2 = (PHY_START >> 30) & 0x3ffffffUL;
+    uint64_t PTE_PPN_2 = (PHY_PPN_2 << 28) & 0x3ffffff0000000UL;
 
 
     // table_index = (PHY_START >> 30) & (0x1ffUL);        // GET 9-bit index
@@ -65,7 +65,7 @@ void setup_vm_final() {
     // Log("_stext = %#llx, _srodata = %#llx, sun = ", _stext, _srodata, (uint64_t)_srodata - (uint64_t)_stext);
 
     // mapping kernel text X|-|R|V
-    printk(FG_COLOR(255, 95, 95) "Mapping kernel text section, NR_pages = %d ... \n" CLEAR, ((_srodata - _stext) >> 12)); // 1 page
+    printk(FG_COLOR(255, 95, 95) "Mapping kernel text section, NR_pages = %d ... \n" CLEAR, ((_srodata - _stext) >> 12)); // 3 page
     create_mapping(swapper_pg_dir, (uint64_t)_stext, (uint64_t)_stext - PA2VA_OFFSET, 
                     (uint64_t)_srodata - (uint64_t)_stext, 0xb); // 4'b1011
     printk(FG_COLOR(255, 95, 95) "...mapping kernel text section done!\n" CLEAR);
@@ -146,7 +146,7 @@ void create_mapping(uint64_t *pgtbl, uint64_t va, uint64_t pa, uint64_t sz, uint
         pte = (uint64_t*)(((pmd[VPN_1] >> 10) << 12) + PA2VA_OFFSET);
 
         // Log("pte = %#llx", pte);
-        pte[VPN_0] = ((pa >> 12) << 10) | perm; // set pte entry
+        pte[VPN_0] = (((pa >> 12) << 10) | perm) & 0x3fffffffffffffUL; // set pte entry
         
         va += PGSIZE;
         pa += PGSIZE;

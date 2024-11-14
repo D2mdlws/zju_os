@@ -58,6 +58,8 @@ relocate:
 
 .align 2
 1:
+    la t0, _traps
+    csrw stvec, t0
     ret
 
     .section .bss.stack
