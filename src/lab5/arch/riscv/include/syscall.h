@@ -9,4 +9,7 @@ uint64_t sys_getpid();
 uint64_t do_fork(struct pt_regs *regs);
 uint64_t walk_pgtbl(uint64_t *pgd, uint64_t va);
 
+uint64_t walk_pgtbl(uint64_t *pgd, uint64_t va);
+void change_ptb_perm(uint64_t *pgd, uint64_t va, uint64_t perm);
+
 #endif

@@ -41,8 +41,7 @@ void trap_handler(uint64_t scause, uint64_t sepc, struct pt_regs *regs) {
             Err("[S] Supervisor Mode Instruction Access Fault: sepc = %#llx, stval = %#llx", sepc, stval);
         } else if (scause == 0x0000000000000002) {
             Err("[S] Supervisor Mode Illegal Instruction: sepc = %#llx, stval = %#llx", sepc, stval);
-        }
-        else if (scause == EX_INST_PAGE_FAULT) {
+        } else if (scause == EX_INST_PAGE_FAULT) {
             do_page_fault(regs);
         } else if (scause == EX_LOAD_PAGE_FAULT) {
             do_page_fault(regs);
@@ -65,13 +64,11 @@ void trap_handler(uint64_t scause, uint64_t sepc, struct pt_regs *regs) {
             } else if (ecall_num == 220) {
                 regs->a0 = do_fork(regs);
                 regs->sepc += 4;
-            }
-            else {
+            } else {
                 Err("[S] Unhandled ecall: a7=0x%lx\n", ecall_num);
                 regs->sepc += 4;
             }
-        }
-        else {
+        } else {
             Err("[S] Unhandled interrupt/exception: scause=0x%lx", scause);
         }
     }
@@ -85,7 +82,23 @@ void do_page_fault(struct pt_regs *regs) {
         uint64_t sepc = csr_read(sepc);
         Err("[S] Page Fault: no vma found for va = %#llx, sepc = %#llx, scause = %#llx", stval, sepc, scause);
     }
-
+    Log("vma->vm_flags & VM_WRITE = %#llx, scause = %#llx", vma->vm_flags & VM_WRITE, scause);
+    uint64_t pte_entry = walk_pgtbl(current->pgd, PGROUNDDOWN(stval));
+    if ((vma->vm_flags & VM_WRITE) == VM_WRITE && scause == EX_STORE_PAGE_FAULT && pte_entry != 0) {
+        Log("COW");
+        uint64_t phy_addr = (pte_entry >> 10) << 12;
+        uint64_t perm = pte_entry & 0x3ff;
+        if ((perm & 0x4) == 0) {
+            uint64_t new_page = (uint64_t)alloc_page();
+            memcpy((void*)new_page, (void*)(phy_addr + PA2VA_OFFSET), PGSIZE);
+            perm |= 0x4;
+            create_mapping(current->pgd, PGROUNDDOWN(stval), new_page - PA2VA_OFFSET, PGSIZE, perm);
+            put_page((void*)(phy_addr + PA2VA_OFFSET));
+        } else {
+            Err("[S] Page Fault: Invalid COW situation, stval = %#llx", stval);
+        }
+        return;
+    }
     if ((vma->vm_flags & VM_READ) == 0 && (scause == EX_LOAD_PAGE_FAULT)) {
         Err("[S] Page Fault: no read permission for va = %#llx", stval);
     }

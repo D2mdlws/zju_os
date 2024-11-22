@@ -39,8 +39,18 @@ uint64_t do_fork(struct pt_regs *regs) {
     struct task_struct *new_task = (struct task_struct *)alloc_page();
     memcpy(new_task, current, PGSIZE); // copy the whole task_struct and kernel stack
     new_task->pid = nr_tasks;
+    
     new_task->thread.ra = (uint64_t)__ret_from_fork;
+    uint64_t ksp_offset_to_bottom = (uint64_t)(regs->sp) - (uint64_t)current;
+    new_task->thread.sp = (uint64_t)new_task + ksp_offset_to_bottom; // points to child's pt_regs
+    
+    uint64_t sscratch = csr_read(sscratch);
+    new_task->thread.sscratch = sscratch; 
 
+    ((uint64_t*)(new_task->thread.sp))[2] = new_task->thread.sp; // set child's pt_regs->sp to the child's pt_regs
+    ((uint64_t*)(new_task->thread.sp))[10] = 0; // set child's pt_regs->a0 to 0
+    ((uint64_t*)(new_task->thread.sp))[32] += 4; // set child's pt_regs->sepc to the next fork() instruction 
+    
     new_task->pgd = (uint64_t *)alloc_page();
     new_task->mm.mmap = NULL;
 
@@ -56,23 +66,24 @@ uint64_t do_fork(struct pt_regs *regs) {
         for (; addr < end_addr; addr += PGSIZE) {
             uint64_t pte_entry = walk_pgtbl(current->pgd, addr);
             uint64_t phy_addr = (pte_entry >> 10) << 12;
-            uint64_t perm = ((vma->vm_flags >> 1) << 1) | 0x1 | 0x10;
+            uint64_t perm = pte_entry & 0x3ff;
+            // if (pte_entry != 0) {
+            //     uint64_t new_page = (uint64_t)alloc_page();
+            //     memcpy((void*)new_page, (void*)(phy_addr + PA2VA_OFFSET), PGSIZE);
+            //     create_mapping(new_task->pgd, addr, new_page - PA2VA_OFFSET, PGSIZE, perm);
+            // }
             if (pte_entry != 0) {
-                uint64_t new_page = (uint64_t)alloc_page();
-                memcpy((void*)new_page, (void*)(phy_addr + PA2VA_OFFSET), PGSIZE);
-                create_mapping(new_task->pgd, addr, new_page - PA2VA_OFFSET, PGSIZE, perm);
+                get_page((void*)(phy_addr + PA2VA_OFFSET));
+                perm &= ~0x4;
+                change_ptb_perm(current->pgd, addr, perm);
+                create_mapping(new_task->pgd, addr, phy_addr, PGSIZE, perm);
             }
         }
     }
+    // Log("finish copying vma");
+    __asm__ __volatile__("sfence.vma\n");
     // set child's pt_regs and stacks
-    uint64_t kernel_sp = (uint64_t)(regs->sp);
-    uint64_t ksp_offset_to_bottom = kernel_sp - (uint64_t)current;
-    new_task->thread.sp = (uint64_t)new_task + ksp_offset_to_bottom; // points to child's pt_regs
-    uint64_t sscratch = csr_read(sscratch);
-    new_task->thread.sscratch = sscratch; 
-    ((uint64_t*)(new_task->thread.sp))[2] = new_task->thread.sp; // _trap will change to user stack in the end
-    ((uint64_t*)(new_task->thread.sp))[10] = 0; // set child's pt_regs->a0 to 0
-    ((uint64_t*)(new_task->thread.sp))[32] += 4; // set child's pt_regs->sepc to the next fork() instruction 
+    
     Log("-----finish fork, new pid = %d-----", new_task->pid);
     return new_task->pid;
 }
@@ -96,4 +107,25 @@ uint64_t walk_pgtbl(uint64_t *pgd, uint64_t va) {
         return 0;
     }
     return pte[VPN0];
+}
+
+void change_ptb_perm(uint64_t *pgd, uint64_t va, uint64_t perm) {
+    uint64_t* pmd;
+    uint64_t* pte;
+    uint64_t VPN2 = (va >> 30) & 0x1ff;
+    uint64_t VPN1 = (va >> 21) & 0x1ff;
+    uint64_t VPN0 = (va >> 12) & 0x1ff;
+
+    if ((pgd[VPN2] & 0x1) == 0) {
+        Err("change_ptb_perm: pgd not exist");
+    }
+    pmd = (uint64_t*)(((pgd[VPN2] >> 10) << 12) + PA2VA_OFFSET);
+    if ((pmd[VPN1] & 0x1) == 0) {
+        Err("change_ptb_perm: pmd not exist");
+    }
+    pte = (uint64_t*)(((pmd[VPN1] >> 10) << 12) + PA2VA_OFFSET);
+    if ((pte[VPN0] & 0x1) == 0) {
+        Err("change_ptb_perm: pte not exist");
+    }
+    pte[VPN0] = (pte[VPN0] & 0xfffffffffffffc00) | perm;
 }
