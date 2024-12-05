@@ -153,7 +153,7 @@ void create_mapping(uint64_t *pgtbl, uint64_t va, uint64_t pa, uint64_t sz, uint
         va += PGSIZE;
         pa += PGSIZE;
     }
-    Log("root = %#llx, [%#llx, %#llx) -> [%#llx, %#llx), perm : %#llx", pgtbl, origin_pa, origin_pa + num_pages * PGSIZE, origin_va, origin_va + num_pages * PGSIZE, perm);
+    printk(FG_COLOR(255, 215, 255) BOLD "create mapping: root = %#llx, [%#llx, %#llx) -> [%#llx, %#llx), perm : %#llx\n" CLEAR, pgtbl, origin_pa, origin_pa + num_pages * PGSIZE, origin_va, origin_va + num_pages * PGSIZE, perm);
 
     return;
 }

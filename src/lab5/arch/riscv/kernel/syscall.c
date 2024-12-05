@@ -34,7 +34,7 @@ uint64_t sys_getpid() {
 }
 
 uint64_t do_fork(struct pt_regs *regs) {
-    Log("-----in do_fork()-----");
+    printk(FG_COLOR(135, 255, 255) "----- pid [%d] starts fork -----\n" CLEAR, current->pid);
     // copy kernel stack
     struct task_struct *new_task = (struct task_struct *)alloc_page();
     memcpy(new_task, current, PGSIZE); // copy the whole task_struct and kernel stack
@@ -46,8 +46,8 @@ uint64_t do_fork(struct pt_regs *regs) {
     
     uint64_t sscratch = csr_read(sscratch);
     new_task->thread.sscratch = sscratch; 
-
-    ((uint64_t*)(new_task->thread.sp))[2] = new_task->thread.sp; // set child's pt_regs->sp to the child's pt_regs
+ 
+    ((uint64_t*)(new_task->thread.sp))[2] = new_task->thread.sp; // set child's pt_regs->sp to the kernel stack's pc
     ((uint64_t*)(new_task->thread.sp))[10] = 0; // set child's pt_regs->a0 to 0
     ((uint64_t*)(new_task->thread.sp))[32] += 4; // set child's pt_regs->sepc to the next fork() instruction 
     
@@ -67,11 +67,13 @@ uint64_t do_fork(struct pt_regs *regs) {
             uint64_t pte_entry = walk_pgtbl(current->pgd, addr);
             uint64_t phy_addr = (pte_entry >> 10) << 12;
             uint64_t perm = pte_entry & 0x3ff;
+            // below commented code is for NOT copy-on-write
             // if (pte_entry != 0) {
             //     uint64_t new_page = (uint64_t)alloc_page();
             //     memcpy((void*)new_page, (void*)(phy_addr + PA2VA_OFFSET), PGSIZE);
             //     create_mapping(new_task->pgd, addr, new_page - PA2VA_OFFSET, PGSIZE, perm);
             // }
+            // below code is for copy-on-write
             if (pte_entry != 0) {
                 get_page((void*)(phy_addr + PA2VA_OFFSET));
                 perm &= ~0x4;
@@ -84,7 +86,7 @@ uint64_t do_fork(struct pt_regs *regs) {
     __asm__ __volatile__("sfence.vma\n");
     // set child's pt_regs and stacks
     
-    Log("-----finish fork, new pid = %d-----", new_task->pid);
+    printk(FG_COLOR(135, 255, 255) "----- pid [%d] finishes fork, new pid = %d -----\n\n" CLEAR, current->pid, new_task->pid);
     return new_task->pid;
 }
 

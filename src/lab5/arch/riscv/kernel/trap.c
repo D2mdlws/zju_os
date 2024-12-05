@@ -82,10 +82,12 @@ void do_page_fault(struct pt_regs *regs) {
         uint64_t sepc = csr_read(sepc);
         Err("[S] Page Fault: no vma found for va = %#llx, sepc = %#llx, scause = %#llx", stval, sepc, scause);
     }
-    Log("vma->vm_flags & VM_WRITE = %#llx, scause = %#llx", vma->vm_flags & VM_WRITE, scause);
+    // Log("vma->vm_flags & VM_WRITE = %#llx, scause = %#llx", vma->vm_flags & VM_WRITE, scause);
+
+    /* Handle COW */
     uint64_t pte_entry = walk_pgtbl(current->pgd, PGROUNDDOWN(stval));
     if ((vma->vm_flags & VM_WRITE) == VM_WRITE && scause == EX_STORE_PAGE_FAULT && pte_entry != 0) {
-        Log("COW");
+        printk(FG_COLOR(135, 215, 0) "--- pid [%d] encounters COW at '%#llx' with scause = %d ---\n" CLEAR, current->pid, stval, scause);
         uint64_t phy_addr = (pte_entry >> 10) << 12;
         uint64_t perm = pte_entry & 0x3ff;
         if ((perm & 0x4) == 0) {
@@ -97,8 +99,11 @@ void do_page_fault(struct pt_regs *regs) {
         } else {
             Err("[S] Page Fault: Invalid COW situation, stval = %#llx", stval);
         }
+        printk(FG_COLOR(135, 215, 0) "--- pid [%d] finishes COW ---\n\n" CLEAR, current->pid);
         return;
     }
+
+    /* Check flags */
     if ((vma->vm_flags & VM_READ) == 0 && (scause == EX_LOAD_PAGE_FAULT)) {
         Err("[S] Page Fault: no read permission for va = %#llx", stval);
     }
@@ -108,6 +113,8 @@ void do_page_fault(struct pt_regs *regs) {
     if ((vma->vm_flags & VM_EXEC) == 0 && (scause == EX_INST_PAGE_FAULT)) {
         Err("[S] Page Fault: no exec permission for va = %#llx", stval);
     }
+
+    /* Handle Annonymous situation, i.e. stack */
     int is_annonymous = (vma->vm_flags & VM_ANON) == 1;
     // Log("[S] Page Fault: is_annonymous = %d", is_annonymous);
     Log("[S] [PID = %d] Valid Page Fault at '%#llx' with scause = %d", current->pid, stval, scause);
@@ -118,12 +125,15 @@ void do_page_fault(struct pt_regs *regs) {
         create_mapping(current->pgd, PGROUNDDOWN(stval), phy_new_page, PGSIZE, perm);
         return ;
     }
+
+    /* Handle ELF */
     // Log("[S] Page Fault: load ELF file");
     // load elf file
     uint64_t file_size      = vma->vm_filesz;
     uint64_t mem_size       = vma->vm_end - vma->vm_start;
     uint64_t page_offset    = stval % PGSIZE;
     uint64_t new_page       = (uint64_t)alloc_page();
+    memset((void*)(new_page), 0, PGSIZE);
     uint64_t file_start_addr= (uint64_t)_sramdisk + vma->vm_pgoff;
     uint64_t file_end_addr  = file_start_addr + file_size ; // [start, end)
     uint64_t perm           = ((vma->vm_flags >> 1) << 1) | 0x1 | 0x10;
